@@ -22,6 +22,7 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Mat;
 
 import java.io.BufferedReader;
@@ -43,6 +44,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     private BufferedReader input;
     JavaCameraView camera;  //view della fotocamera
     BaseLoaderCallback baseLoaderCallback;//bo
+    int activeCamera = CameraBridgeViewBase.CAMERA_ID_BACK; //selezione la camera da utilizzare (posteriore)
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,13 +52,27 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         setContentView(R.layout.activity_main);
         textView = (TextView) findViewById(R.id.Ciao);
         alertDialog = new AlertDialog.Builder(MainActivity.this).create();
-
-        if(permission()) {  //chiedo i permessi per la fotocamera
-            //inizializzo la camera
-            camera = findViewById(R.id.javaCameraView);
-            camera.setCameraPermissionGranted();    //permessi camera
-            camera.setCvCameraViewListener(this);
-        }
+        camera = findViewById(R.id.javaCameraView);
+        baseLoaderCallback = new BaseLoaderCallback(this) { //FA PARTIRE LA VIDEOCAMERA SE OPENCV E' PARTITO BENE
+            @Override
+            public void onManagerConnected(int status) {
+                super.onManagerConnected(status);
+                switch (status) {
+                    case LoaderCallbackInterface.SUCCESS: {
+                        Log.d("OPENCV", "SIIIII");
+                        System.out.println("PARTITO!!!");
+                        camera.enableView(); //attivo la fotocamera se tutto è andato bene
+                        break;
+                    }
+                    default: {
+                        super.onManagerConnected(status);
+                        System.out.println("FUCKKKKK!!!");
+                        Log.d("OPENCV","NOOOO");
+                        break;
+                    }
+                }
+            }
+        };
 
         Thread1 = new Thread(new Thread1());
         Thread1.start();
@@ -93,7 +109,27 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
                                         }
                                     });
                             alertDialog.show();
-                            openCamera();
+
+                            //CHIEDO I PERMESSI DELLA FOTOCAMERA E LA INIZIALIZZO
+                            if(permission()) {
+                                //inizializzo la camera
+                                initializeCamera(camera, activeCamera);
+                                openCamera();   //apro la fotocamera
+                            }else{
+                                //metto un allert per avvertire l'utente che non ha accettato i permessi
+                                alertDialog.setTitle(":(");
+                                alertDialog.setMessage("Non hai accettato i permessi :'(");
+                                alertDialog.setCancelable(false);
+                                alertDialog.setButton(AlertDialog.BUTTON_NEUTRAL, "OK",
+                                        new DialogInterface.OnClickListener() {
+                                            public void onClick(DialogInterface dialog, int which) {
+                                                dialog.dismiss();
+                                                finish();
+                                                System.exit(0);
+                                            }
+                                        });
+                                alertDialog.show();
+                            }
                         }
                     });
                     new Thread(new Thread2()).start();  //FACCIO PARTIRE LO SCAMBIO DI INFORMAZIONI
@@ -131,33 +167,29 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         }
     }
 
+    //apro la fotocamera a tutto schermo
     private void openCamera() {
+            initializeCamera(camera, activeCamera);
             textView.setVisibility(View.GONE);
-            camera.setVisibility(View.VISIBLE);
-            baseLoaderCallback = new BaseLoaderCallback(this) { //FA PARTIRE LA VIDEOCAMERA SE OPENCV E' PARTITO BENE
-                @Override
-                public void onManagerConnected(int status) {
-                    switch (status) {
-                        case LoaderCallbackInterface.SUCCESS: {
-                            Log.d("OPENCV","SIIIII");
-                            camera.enableView(); //attivo la fotocamera se tutto è andato bene
-                        }
-                        break;
-                        default: {
-                            super.onManagerConnected(status);
-                            Log.d("OPENCV","NOOOO");
-                        }
-                        break;
-                    }
-                }
-            };
+            camera.enableView();
+            System.out.println("BELAAAAA!!!");
+    }
+
+    //INIZIALIZZO LA FOTOCAMERA
+    private void initializeCamera(JavaCameraView camera, int activeCamera){
+        camera.setCameraPermissionGranted();
+        camera.setCameraIndex(activeCamera);
+        camera.setVisibility(SurfaceView.VISIBLE);
+        camera.setCvCameraViewListener(this);
     }
 
     //CONTROLLA CHE CI SIA IL PERMESSO DELLA FOTOCAMERA, ALTRIMENTI LO CHIEDE ALL'UTENTE
     private boolean permission() {
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            //chiedo i permessi della fotocamera nel caso non li abbia ancora
             ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.CAMERA}, 50);
         } else {
+            initializeCamera(camera, activeCamera);
             return true;
         }
         return false;
@@ -177,5 +209,18 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
         return null;
+    }
+
+    //INIZIALIZZAZIONE OPENCV
+    @Override
+    public void onResume() {
+        super.onResume();
+        if(OpenCVLoader.initDebug()) {
+            Log.d("OPENCV","OpenCV caricato correttamente");
+            baseLoaderCallback.onManagerConnected(BaseLoaderCallback.SUCCESS); //chiama baseLoaderCallback (definito in alto, fa attivare la videocamera se tutto va bene)
+        }
+        else{
+            Log.d("OPENCV","Errore OpenCV non caricato");
+        }
     }
 }
