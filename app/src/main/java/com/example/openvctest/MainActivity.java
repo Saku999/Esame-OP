@@ -1,4 +1,4 @@
-package com.openvctest.opencvtest;
+package com.example.openvctest;
 
 import android.Manifest;
 import android.content.DialogInterface;
@@ -16,9 +16,13 @@ import androidx.core.content.ContextCompat;
 
 import android.os.Bundle;
 
+import com.example.opencvtest.R;
+
 import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.core.Mat;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,7 +31,7 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
     int ServerPort = 4747;
     ServerSocket serverSocket;
@@ -40,9 +44,8 @@ public class MainActivity extends AppCompatActivity {
     JavaCameraView camera;  //view della fotocamera
     BaseLoaderCallback baseLoaderCallback;//bo
 
-
     @Override
-    protected void onCreate(Bundle savedInstanceState) implements CvCameraViewListener2 {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         textView = (TextView) findViewById(R.id.Ciao);
@@ -130,7 +133,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void openCamera() {
             textView.setVisibility(View.GONE);
-            camera.setVisibility(SurfaceView.VISIBLE);
+            camera.setVisibility(View.VISIBLE);
             baseLoaderCallback = new BaseLoaderCallback(this) { //FA PARTIRE LA VIDEOCAMERA SE OPENCV E' PARTITO BENE
                 @Override
                 public void onManagerConnected(int status) {
@@ -158,5 +161,21 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return false;
+    }
+
+    //METODI DA IMPLEMENTARE DELL'INTERFACCIA
+    @Override
+    public void onCameraViewStarted(int width, int height) {
+
+    }
+
+    @Override
+    public void onCameraViewStopped() {
+
+    }
+
+    @Override
+    public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+        return null;
     }
 }

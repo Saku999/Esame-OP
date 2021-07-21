@@ -1,4 +1,4 @@
-package com.opencvtest;
+package com.example.opencvtest;
 
 import android.content.Context;
 
