@@ -36,6 +36,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     int ServerPort = 4747;
     ServerSocket serverSocket;
+    Mat mRgba;  //matrice dei pixel ricevuti dalla fotocamera
     Thread Thread1 = null;
     String IPAddress;
     TextView textView;
@@ -198,7 +199,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     //METODI DA IMPLEMENTARE DELL'INTERFACCIA
     @Override
     public void onCameraViewStarted(int width, int height) {
-
+            mRgba.release();
     }
 
     @Override
@@ -208,7 +209,8 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        return null;
+        mRgba=inputFrame.rgba();
+        return mRgba;
     }
 
     //INIZIALIZZAZIONE OPENCV
