@@ -3,6 +3,8 @@ package com.example.openvctest;
 import android.Manifest;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.media.MediaRecorder;
 import android.net.wifi.WifiManager;
 import android.text.format.Formatter;
 import android.util.Log;
@@ -23,12 +25,25 @@ import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
+import org.opencv.core.CvException;
 import org.opencv.core.Mat;
+import org.opencv.core.Size;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.videoio.VideoCapture;
+import org.opencv.videoio.VideoWriter;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutput;
+import java.io.DataOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -37,15 +52,17 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     int ServerPort = 4747;
     ServerSocket serverSocket;
     Mat mRgba;  //matrice dei pixel ricevuti dalla fotocamera
+    Bitmap bpm = null;
     Thread Thread1 = null;
     String IPAddress;
     TextView textView;
     AlertDialog alertDialog;
-    private PrintWriter output;
-    private BufferedReader input;
+    private OutputStream output;
+    DataOutputStream dos;
     JavaCameraView camera;  //view della fotocamera
     BaseLoaderCallback baseLoaderCallback;//bo
     int activeCamera = CameraBridgeViewBase.CAMERA_ID_BACK; //selezione la camera da utilizzare (posteriore)
+    ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +72,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         alertDialog = new AlertDialog.Builder(MainActivity.this).create();
         camera = findViewById(R.id.javaCameraView);
         baseLoaderCallback = new BaseLoaderCallback(this) { //FA PARTIRE LA VIDEOCAMERA SE OPENCV E' PARTITO BENE
+
             @Override
             public void onManagerConnected(int status) {
                 super.onManagerConnected(status);
@@ -95,8 +113,8 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
                 });
                 try {
                     socket = serverSocket.accept();
-                    output = new PrintWriter(socket.getOutputStream());
-                    input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                    output = socket.getOutputStream();  //creazione del mittente
+                    dos = new DataOutputStream(output); //creo il canale per la trasmissioni dei dati (PNG)
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() { //qui metto semplicemente un allert che mi avvisa l'avvenuta connessione
@@ -133,7 +151,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
                             }
                         }
                     });
-                    new Thread(new Thread2()).start();  //FACCIO PARTIRE LO SCAMBIO DI INFORMAZIONI
+                    //new Thread(new Thread2()).start();  //FACCIO PARTIRE LO SCAMBIO DI INFORMAZIONI
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -143,28 +161,22 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         }
     }
 
+    //DOVREI INVIARE IL VIDEDO-FRAME CORRENTE AL PC
     private class Thread2 implements Runnable {
         @Override
         public void run() {
-            while (true) {
-                try {
-                    final String message = input.readLine();
-                    if (message != null) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                textView.append("client:" + message + "\n");
-                            }
-                        });
-                    } else {
-                        Thread1 = new Thread(new Thread1());
-                        Thread1.start();
-                        return;
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+            try{
+                //creo il Bitmap prima di spedire l'arrey di byte
+                bpm = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap.Config.ARGB_8888);
+                Utils.matToBitmap(mRgba, bpm);
+                //lo comprimo per avere un formato PNG da inviare
+                bpm.compress(Bitmap.CompressFormat.PNG, 0, bos);
+                byte[] array = bos.toByteArray();
+                dos.writeInt(array.length);             //dimensiono l'array dei dati in uscita
+                dos.write(array, 0, array.length);  //scrivo sull'outputstream dei dati
+                System.out.println("Ciao");
+            }catch(CvException e){Log.d("Exception",e.getMessage());}
+            catch(IOException e) {e.printStackTrace();}
         }
     }
 
@@ -210,6 +222,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
         mRgba=inputFrame.rgba();
+        new Thread(new Thread2()).start();
         return mRgba;
     }
 
