@@ -1,22 +1,28 @@
 package com.example.openvctest;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Camera;
 import android.media.MediaRecorder;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.text.format.Formatter;
 import android.util.Log;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.TextView;
+
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.os.Bundle;
+import android.widget.Toast;
 
 import com.example.opencvtest.R;
 
@@ -37,6 +43,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -46,6 +53,10 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.util.Random;
 
 public class MainActivity extends AppCompatActivity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
@@ -63,6 +74,10 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     BaseLoaderCallback baseLoaderCallback;//bo
     int activeCamera = CameraBridgeViewBase.CAMERA_ID_BACK; //selezione la camera da utilizzare (posteriore)
     ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    //
+    int cont = 0;
+    File files;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -163,22 +178,25 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     //DOVREI INVIARE IL VIDEDO-FRAME CORRENTE AL PC
     private class Thread2 implements Runnable {
+
+        @RequiresApi(api = Build.VERSION_CODES.O)
         @Override
         public void run() {
             try{
                 //creo il Bitmap prima di spedire l'arrey di byte
                 bpm = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap.Config.ARGB_8888);
-                Utils.matToBitmap(mRgba, bpm);
-                //lo comprimo per avere un formato PNG da inviare
-                bpm.compress(Bitmap.CompressFormat.PNG, 0, bos);
-                byte[] array = bos.toByteArray();
-                dos.writeInt(array.length);             //dimensiono l'array dei dati in uscita
-                dos.write(array, 0, array.length);  //scrivo sull'outputstream dei dati
-                System.out.println("Ciao");
+                //lo converto in File
+                bitmapToVideoEncoder.queueFrame(bpm);
             }catch(CvException e){Log.d("Exception",e.getMessage());}
-            catch(IOException e) {e.printStackTrace();}
         }
     }
+
+    BitmapToVideoEncoder bitmapToVideoEncoder = new BitmapToVideoEncoder(new BitmapToVideoEncoder.IBitmapToVideoEncoderCallback() {
+        @Override
+        public void onEncodingComplete(File outputFile) {
+            //Toast.makeText(this,  "Encoding complete!", Toast.LENGTH_LONG).show();
+        }
+    });
 
     //apro la fotocamera a tutto schermo
     private void openCamera() {
@@ -219,10 +237,33 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     }
 
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
         mRgba=inputFrame.rgba();
+        //faccio partire l'encoding
+        if(cont == 0){
+            files = new File(getFilesDir(), "files");
+            bitmapToVideoEncoder.startEncoding(mRgba.cols(), mRgba.rows(), files);
+        }
+        cont++;
         new Thread(new Thread2()).start();
+        //fermo l'encoding
+        if(cont == 30){
+            bitmapToVideoEncoder.stopEncoding();
+            //creo byte array
+            try {
+                System.out.println("IL FILE:" + files.getTotalSpace());
+                byte[] array = Files.readAllBytes(files.toPath());
+                dos.writeInt(array.length);             //dimensiono l'array dei dati in uscita
+                dos.write(array, 0, array.length);  //scrivo sull'outputstream dei dati
+            }catch(IOException e) {e.printStackTrace();}
+            System.out.println("Ciao");
+            if(files.delete())
+                System.out.println("Cancellato OK");
+            cont=0;
+        }
         return mRgba;
     }
 
